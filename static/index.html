@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Smart Bus Tracker — Bengaluru</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;}
+  .header{background:#1565C0;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,0.2);}
+  .header h1{font-size:17px;font-weight:600;}
+  .pill{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;}
+  .pill-white{background:rgba(255,255,255,0.2);}
+  #live-pill{margin-left:auto;background:rgba(255,80,80,0.35);}
+  .container{display:flex;height:calc(100vh - 48px);}
+  #map{flex:1;}
+  .sidebar{width:290px;background:#fff;padding:14px;overflow-y:auto;border-left:1px solid #dde;display:flex;flex-direction:column;gap:10px;}
+  .card{background:#f7f8fa;border-radius:10px;padding:13px;border:1px solid #e4e6ea;}
+  .card-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+  .card-value{font-size:19px;font-weight:600;color:#111;}
+  .card-sub{font-size:12px;color:#777;margin-top:2px;}
+  .metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;}
+  .ok{background:#E8F5E9;color:#2E7D32;}
+  .late{background:#FFEBEE;color:#C62828;}
+  .stops-list{display:flex;flex-direction:column;gap:6px;}
+  .stop-row{display:flex;align-items:center;gap:9px;font-size:12px;color:#444;}
+  .dot{width:9px;height:9px;border-radius:50%;background:#1565C0;flex-shrink:0;transition:all .3s;}
+  .dot.active{background:#FF6F00;width:13px;height:13px;}
+  .dot.done{background:#43A047;}
+  input[type=email]{width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:12px;outline:none;}
+  input[type=email]:focus{border-color:#1565C0;}
+  .sub-btn{width:100%;margin-top:7px;padding:9px;background:#1565C0;color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer;font-weight:500;}
+  .sub-btn:hover{background:#0D47A1;}
+  .footer-note{font-size:10px;color:#bbb;text-align:center;}
+  .toast{position:fixed;bottom:20px;right:20px;background:#B71C1C;color:#fff;padding:11px 16px;border-radius:10px;font-size:12px;display:none;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.25);}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span style="font-size:20px">🚌</span>
+  <h1>Smart Bus Tracker</h1>
+  <span class="pill pill-white">Bengaluru</span>
+  <span class="pill" id="live-pill">Connecting...</span>
+</div>
+
+<div class="container">
+  <div id="map"></div>
+
+  <div class="sidebar">
+
+    <div class="card">
+      <div class="card-label">Bus</div>
+      <div class="card-value" id="bus-id">—</div>
+      <div class="card-sub" id="bus-route">Loading...</div>
+    </div>
+
+    <div class="metrics">
+      <div class="card">
+        <div class="card-label">Status</div>
+        <span class="badge ok" id="bus-status">—</span>
+      </div>
+      <div class="card">
+        <div class="card-label">Speed</div>
+        <div class="card-value" style="font-size:15px" id="bus-speed">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Current stop</div>
+      <div class="card-value" style="font-size:14px" id="current-stop">—</div>
+      <div class="card-sub">Next → <span id="next-stop">—</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">ETA to last stop</div>
+      <div class="card-value" id="bus-eta">— min</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Route stops</div>
+      <div class="stops-list" id="stops-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Get delay alerts via email</div>
+      <input type="email" id="email-input" placeholder="you@example.com"/>
+      <button class="sub-btn" onclick="subscribe()">Subscribe</button>
+    </div>
+
+    <div class="footer-note">Last update: <span id="last-update">—</span></div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast">⚠️ Bus is delayed!</div>
+
+<script>
+const STOPS = [
+  {name:"Kempegowda Bus Station", lat:12.9767, lng:77.5713},
+  {name:"Vidhana Soudha",         lat:12.9793, lng:77.5908},
+  {name:"MG Road",                lat:12.9753, lng:77.6069},
+  {name:"Trinity Circle",         lat:12.9724, lng:77.6197},
+  {name:"Ulsoor Lake",            lat:12.9833, lng:77.6272},
+  {name:"Indiranagar",            lat:12.9784, lng:77.6408},
+  {name:"Domlur",                 lat:12.9591, lng:77.6387},
+  {name:"Koramangala",            lat:12.9352, lng:77.6245},
+];
+
+// Map setup
+const map = L.map('map').setView([12.965, 77.605], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'© OpenStreetMap contributors'
+}).addTo(map);
+
+// Route line
+L.polyline(STOPS.map(s=>[s.lat,s.lng]),{color:'#1565C0',weight:3,opacity:.55,dashArray:'8 5'}).addTo(map);
+
+// Stop markers
+STOPS.forEach((s,i)=>{
+  const col = i===0?'#43A047': i===STOPS.length-1?'#E53935':'#1565C0';
+  L.circleMarker([s.lat,s.lng],{radius:6,fillColor:col,color:'#fff',weight:2,fillOpacity:1})
+   .addTo(map).bindPopup(`<b>${s.name}</b>`);
+});
+
+// Bus marker
+const busIcon = L.divIcon({html:'<div style="font-size:22px">🚌</div>',iconSize:[28,28],iconAnchor:[14,14],className:''});
+const busMarker = L.marker([STOPS[0].lat,STOPS[0].lng],{icon:busIcon}).addTo(map);
+
+// Stops sidebar list
+const stopsList = document.getElementById('stops-list');
+STOPS.forEach((s,i)=>{
+  const row = document.createElement('div');
+  row.className='stop-row';
+  row.innerHTML=`<div class="dot" id="dot-${i}"></div><span>${s.name}</span>`;
+  stopsList.appendChild(row);
+});
+
+// Socket
+const socket = io();
+socket.on('connect',()=>{
+  const el = document.getElementById('live-pill');
+  el.textContent='● Live'; el.style.background='rgba(80,220,100,0.3)';
+});
+socket.on('disconnect',()=>{
+  const el = document.getElementById('live-pill');
+  el.textContent='Disconnected'; el.style.background='rgba(255,80,80,0.35)';
+});
+
+let lastDelayed = false;
+socket.on('bus_update', d=>{
+  busMarker.setLatLng([d.lat, d.lng]);
+  document.getElementById('bus-id').textContent      = d.bus_id;
+  document.getElementById('bus-route').textContent   = d.route;
+  document.getElementById('current-stop').textContent= d.current_stop;
+  document.getElementById('next-stop').textContent   = d.next_stop;
+  document.getElementById('bus-eta').textContent     = d.eta+' min';
+  document.getElementById('bus-speed').textContent   = d.speed+' km/h';
+  document.getElementById('last-update').textContent = d.timestamp;
+
+  const sb = document.getElementById('bus-status');
+  sb.textContent = d.status;
+  sb.className   = 'badge '+(d.delayed?'late':'ok');
+
+  STOPS.forEach((s,i)=>{
+    const dot = document.getElementById('dot-'+i);
+    const seg = d.segment||0;
+    dot.className = 'dot'+(i<seg?' done': i===seg?' active':'');
+  });
+
+  if(d.delayed && !lastDelayed){
+    const t=document.getElementById('toast');
+    t.style.display='block';
+    setTimeout(()=>t.style.display='none',4000);
+  }
+  lastDelayed = d.delayed;
+});
+
+// Load initial state
+fetch('/bus').then(r=>r.json()).then(d=>{ if(d&&d.lat) socket.emit('bus_update',d); });
+
+function subscribe(){
+  const email=document.getElementById('email-input').value.trim();
+  if(!email){alert('Please enter your email'); return;}
+  fetch('/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})})
+    .then(r=>r.json()).then(()=>{ alert('Subscribed! You will get delay alerts.'); });
+}
+</script>
+</body>
+</html>
