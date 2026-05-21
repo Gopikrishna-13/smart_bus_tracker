@@ -11,7 +11,8 @@ app.config['SECRET_KEY'] = 'bustrack-secret-2024'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Firebase init
-cred = credentials.Certificate('serviceAccountKey.json')
+key_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', 'serviceAccountKey.json')
+cred = credentials.Certificate(key_path)
 firebase_admin.initialize_app(cred, {
     'databaseURL': 'https://bus-tracker-c1dc9-default-rtdb.firebaseio.com/'   # Replace with your Firebase URL
 })

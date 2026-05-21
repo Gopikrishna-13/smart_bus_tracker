@@ -4,7 +4,7 @@ import random
 
 # Change to your Azure URL after deployment
 # While testing locally keep it as localhost
-SERVER_URL = "http://localhost:5000"
+SERVER_URL = "https://bustrack-gopi-2024.southeastasia-01.azurewebsites.net"
 
 ROUTE_STOPS = [
     {"name": "Kempegowda Bus Station", "lat": 12.9767, "lng": 77.5713},
