@@ -4,7 +4,7 @@ import random
 
 # Change to your Azure URL after deployment
 # While testing locally keep it as localhost
-SERVER_URL = "https://bustrack-gopi-2024.southeastasia-01.azurewebsites.net"
+SERVER_URL = "https://smart-bus-tracker-w4pj.onrender.com"
 
 ROUTE_STOPS = [
     {"name": "Kempegowda Bus Station", "lat": 12.9767, "lng": 77.5713},
@@ -27,6 +27,12 @@ def interpolate(start, end, t):
     lat += random.uniform(-0.0002, 0.0002)
     lng += random.uniform(-0.0002, 0.0002)
     return round(lat, 6), round(lng, 6)
+# Wake up server
+try:
+    requests.get(SERVER_URL, timeout=30)
+    print("Server is awake!")
+except:
+    print("Waking up server...")
 
 def simulate():
     step = 0
@@ -77,7 +83,7 @@ def simulate():
         }
 
         try:
-            r = requests.post(f"{SERVER_URL}/update", json=data, timeout=5)
+            r = requests.post(f"{SERVER_URL}/update", json=data, timeout=30)
             status_icon = "⚠️ " if delayed else "✅"
             print(f"{status_icon} [{data['timestamp']}] {start_stop['name']} → {end_stop['name']} | ETA {eta} min | {data['speed']} km/h")
         except requests.exceptions.ConnectionError:
