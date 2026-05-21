@@ -1,20 +1,22 @@
-from flask import Flask, jsonify, request, send_from_directory
-from flask_socketio import SocketIO
-import firebase_admin
-from firebase_admin import credentials, db
+import json
+import os
 import smtplib
 from email.mime.text import MIMEText
-import os
+
+import firebase_admin
+from firebase_admin import credentials, db
+from flask import Flask, jsonify, request, send_from_directory
+from flask_socketio import SocketIO
 
 app = Flask(__name__, static_folder='static')
 app.config['SECRET_KEY'] = 'bustrack-secret-2024'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-# Firebase init
-key_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', 'serviceAccountKey.json')
-cred = credentials.Certificate(key_path)
+# Firebase init — reads from environment variable on Render/Azure
+key_json = json.loads(os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON', '{}'))
+cred = credentials.Certificate(key_json)
 firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://bus-tracker-c1dc9-default-rtdb.firebaseio.com/'   # Replace with your Firebase URL
+    'databaseURL': os.environ.get('https://bus-tracker-c1dc9-default-rtdb.firebaseio.com', '')
 })
 
 subscribers = []
