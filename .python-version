@@ -1,1 +1,1 @@
-3.12.0
+echo 3.11.6 > .python-version
