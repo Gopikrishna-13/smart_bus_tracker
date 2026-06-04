@@ -12,11 +12,11 @@ app = Flask(__name__, static_folder='static')
 app.config['SECRET_KEY'] = 'bustrack-secret-2024'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-# Firebase init — reads from environment variable on Render/Azure
+# Firebase init — reads from environment variable on Render
 key_json = json.loads(os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON', '{}'))
 cred = credentials.Certificate(key_json)
 firebase_admin.initialize_app(cred, {
-    'databaseURL': os.environ.get('https://bus-tracker-c1dc9-default-rtdb.firebaseio.com', '')
+    'databaseURL': os.environ.get('DATABASE_URL', 'https://bus-tracker-c1dc9-default-rtdb.firebaseio.com')
 })
 
 subscribers = []
